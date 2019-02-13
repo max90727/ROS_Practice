@@ -1,0 +1,81 @@
+#!/bin/bash
+set -e
+
+DOCKER_IMAGE_NAME=aftech/robot
+WORKDIR=/data
+DOCKER_FOLDER=$(dirname $0)
+
+# Detect environment of docker command
+INTERACTIVE_OPTS="-"
+# Check if STDIN file is pipe. If not, it is "regular" STDIN
+[[ -p /dev/fd/0 ]] || INTERACTIVE_OPTS="${INTERACTIVE_OPTS}i"
+# Check if STDIN descriptor is associated with a terminal device
+[[ -t 0 ]] && INTERACTIVE_OPTS="${INTERACTIVE_OPTS}t"
+[[ "${INTERACTIVE_OPTS}" == "-" ]] && INTERACTIVE_OPTS=""
+
+help() {
+    echo "This helper script have some sub commands to manage this docker image"
+    echo "  $0 <command>"
+    echo "     clean       Cleans all hanging images and containers (not labeled or running)"
+    echo "     cleanall    clean + removes named image created by this script"
+    echo "     save_image  stores the image in a compressed file"
+    echo "     build       builds the image"
+    echo "     run [args]  runs image, bash if no argument, otherwise runs the commands given and exists"
+}
+
+clean() {
+    echo Removing 
+    docker image prune -f
+    docker container prune -f
+}
+
+cleanall() {
+    clean
+    docker rmi --force $DOCKER_IMAGE_NAME || exit $?
+}
+
+save_image() {
+    if [[ -x "$(command -v pxz)" ]]; then
+        COMPRESSION_TOOL=$(command -v pxz)
+    else
+        COMPRESSION_TOOL=$(command -v xz)
+    fi
+    echo "Saving Docker image using compression tool: $COMPRESSION_TOOL"
+
+    # Save images
+    set -o pipefail               # Turn on failing the command, if any command in pipe fails
+    destfile=${DOCKER_IMAGE_NAME}.tar.xz
+    docker save ${DOCKER_IMAGE_NAME}:latest | $COMPRESSION_TOOL > $destfile
+    echo "    File $destfile successfully created."
+    echo "    To restore, run:"
+    echo "        $COMPRESSION_TOOL -cd $destfile | docker load"
+}
+
+build() {
+    docker build -t $DOCKER_IMAGE_NAME $DOCKER_FOLDER $* | tee $DOCKER_FOLDER/build.log
+}
+
+run() {
+    if [ -z "$*" ]; then
+        args="bash"
+    else
+        args=$*
+    fi
+    echo Running docker container with args: $args
+    cmd="docker run ${INTERACTIVE_OPTS} --privileged --rm
+        --net=host
+        --ipc=host
+        --user=$(id -u):$(id -g)
+        --volume $(pwd):$WORKDIR
+        -w $WORKDIR
+        $DOCKER_IMAGE_NAME $args"
+    $cmd
+}
+
+if [ -z "$*" ]; then
+    help
+else
+    cmd="$1"
+    shift
+    $cmd $*
+fi
