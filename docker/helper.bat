@@ -57,8 +57,7 @@ docker run -it --privileged --rm ^
     --ipc=host ^
     --volume %cd%:%WORKDIR% ^
     -w %WORKDIR% ^
-    %ARGS% ^
-    %DOCKER_IMAGE_NAME% bash
+    %DOCKER_IMAGE_NAME% %ARGS%
 GOTO :theend
 
 
