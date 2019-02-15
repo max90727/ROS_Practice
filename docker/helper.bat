@@ -46,7 +46,7 @@ GOTO :theend
 
 :build
 ECHO Building docker image
-docker build --no-cache -t %DOCKER_IMAGE_NAME% %DOCKER_FOLDER%
+docker build -t %DOCKER_IMAGE_NAME% %DOCKER_FOLDER%
 GOTO :theend
 
 :run
